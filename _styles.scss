@@ -1,0 +1,21 @@
+// This File is imported last, and will override other styles in the cascade
+// Add styles here to make changes without digging in too much
+article {
+  .img-box{
+    text-align: center;
+    &.left {
+      float: left;
+      margin-right: 20px;
+      margin-bottom: 20px;
+    }
+    &.right {
+      float: right;
+      margin-left: 20px;
+      margin-bottom: 20px;
+    }
+    .caption {
+      font-size: .85em;
+      font-style: italic;
+    }
+  }
+}
