@@ -4,7 +4,7 @@
   <title><![CDATA[Ruby on Training Wheels]]></title>
   <link href="http://mendelk.github.io/atom.xml" rel="self"/>
   <link href="http://mendelk.github.io/"/>
-  <updated>2013-07-18T21:45:17-04:00</updated>
+  <updated>2013-07-26T01:25:01-04:00</updated>
   <id>http://mendelk.github.io/</id>
   <author>
     <name><![CDATA[Mendel Kramer]]></name>
@@ -12,6 +12,113 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[On the Internals of CanCan]]></title>
+    <link href="http://mendelk.github.io/blog/2013/07/26/on-the-internals-of-cancan/"/>
+    <updated>2013-07-26T01:15:00-04:00</updated>
+    <id>http://mendelk.github.io/blog/2013/07/26/on-the-internals-of-cancan</id>
+    <content type="html"><![CDATA[<p>Sometimes we forget that Ruby on Rails is in fact built on &hellip; Ruby. In this post, I want to explore the CanCan gem to see how it works its magic.</p>
+
+<!--more-->
+
+
+<hr />
+
+<p>This post explores how the <a href="https://github.com/ryanb/cancan">CanCan</a> gem (v1.6.10) works internally. Lots of this applies to other gems as well.</p>
+
+<p>If you&rsquo;re completely unfamiliar with CanCan, the authorization gem from <a href="http://twitter.com/rbates">Ryan Bates</a>, I highly recommend you look it up. Very briefly, this gem allows me to write code such as this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='ruby'><span class='line'><span class="o">&lt;</span><span class="sx">% if </span><span class="n">can?</span> <span class="ss">:edit</span><span class="p">,</span> <span class="vi">@article</span> <span class="sx">%&gt;</span>
+</span><span class='line'><span class="sx">  &lt;%= link_to &#39;Edit&#39;, edit_article_path(@article) %&gt;</span>
+</span><span class='line'><span class="o">&lt;</span><span class="sx">% end </span><span class="o">%&gt;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>How simple is that?</p>
+
+<p>On the flip side, the user abilities are defined like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+</pre></td><td class='code'><pre><code class='ruby'><span class='line'><span class="k">class</span> <span class="nc">Ability</span>
+</span><span class='line'>  <span class="kp">include</span> <span class="ss">CanCan</span><span class="p">:</span><span class="ss">:Ability</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="n">can</span> <span class="ss">:edit</span><span class="p">,</span> <span class="no">Article</span><span class="p">,</span> <span class="n">author_id</span><span class="p">:</span> <span class="n">user</span><span class="o">.</span><span class="n">id</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>user</code> param that you see passed into the <code>initialize</code> method is the result of querying a global <code>current_user</code> method.</p>
+
+<p>It is your responsibility to create that method, and ensure it return the logged in user. Cancan handles <em>authorization</em>, not <em>authentication</em>.</p>
+
+<p>In these lines of code, we allow the <code>current_user</code> to <code>:edit</code> an instance of the <code>Article</code> model <strong>if</strong> the <code>author_id</code> property on the Article matched the <code>id</code> of the user.</p>
+
+<p>There are lot&rsquo;s of other options here, so read the well-written wiki.</p>
+
+<p>Make sure you create this class, and name it <code>Ability</code>. CanCan relies on that convention.</p>
+
+<p>So how does the magic happen? How do we have access to this new method <code>can?</code> (and <code>cannot?</code>).</p>
+
+<p>As is the case of any gem, when you add <code>gem 'cancan'</code> to your Gemfile, and run <code>bundle</code>, ruby will fetch the gem source-code if doesn&rsquo;t exist on your system yet, and will load the file in the lib/GEM_NAME.rb, in this case <code>lib/cancan.rb</code>.</p>
+
+<p>You&rsquo;ll see that this file simply requires the rest of the gem&rsquo;s code, all in the <code>lib</code> dir, namespaced under the <code>cancan</code> dir.</p>
+
+<p>The first file required is <code>ability.rb</code>. This is the file that declares the <code>CanCan::Ability</code> module, which as seen before will get <code>included</code> in our <code>Ability</code> class.</p>
+
+<p>The methods defined in this module are what we can call in our <code>Ability</code> file, such as <code>can :edit, Article, author_id: user.id</code>.</p>
+
+<p>The next file, <code>rule.rb</code>, is what handles a lot of the dirty work under the hood. The methods in this file are all for internal use only. This gem has been designed so as to completely isolate code meant to be called directly (such as the <code>can</code> and <code>authorize</code> methods) from these methods, which are never meant to be directly referenced.</p>
+
+<p>So it is with the next two required files, <code>controller_resource.rb</code> and <code>controller_additions.rb</code>, the former of which is the internal implemention of the latter. It is within this latter file that we see the <code>can?</code>, and other methods that get called within our views and controllers.</p>
+
+<p>So how do we actually have access to these methods without adding any <code>include</code> or <code>extend</code> calls into our model or controller classes?</p>
+
+<p>The magic happens in the last few lines:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='ruby'><span class='line'><span class="k">if</span> <span class="n">defined?</span> <span class="ss">ActionController</span><span class="p">:</span><span class="ss">:Base</span>
+</span><span class='line'>  <span class="ss">ActionController</span><span class="p">:</span><span class="ss">:Base</span><span class="o">.</span><span class="n">class_eval</span> <span class="k">do</span>
+</span><span class='line'>    <span class="kp">include</span> <span class="ss">CanCan</span><span class="p">:</span><span class="ss">:ControllerAdditions</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>This checks if we&rsquo;re using Active Record, and if we are, it <code>includes</code> this module into the <code>ActionController::Base</code>, the module which every Active Record model inherits from, thus responding to those method calls.</p>
+
+<p>So that&rsquo;s the short of it. Although the wiki is very helpful, the inline documentation is more verbose, so if you get stuck, that might be a good place to start. Besides, code organization is a skill hard to pickup, and I&rsquo;m sure I&rsquo;ve learned something perusing this codebase, written by a programmer far more skilled than me. And, best of all, Rails is that much less magical. Magic != Fun.</p>
+
+<p><img class="article-img" src="http://imgs.xkcd.com/comics/duty_calls.png"></p>
+
+<p><em><a href="http://xkcd.com/386/">386 Duty Calls: What do you want me to do?  LEAVE?  Then they&rsquo;ll keep being wrong!</a></em></p>
+
+<hr />
+
+<p><em>All Revisions to this document are visible <a href="https://github.com/mendelk/mendelk.github.io/commits/master/blog/2013/07/26/on-the-internals-of-cancan/index.html">here</a></em></p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Patterns for Saving Associated Model Data in Rails]]></title>
