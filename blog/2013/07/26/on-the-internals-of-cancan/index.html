@@ -179,7 +179,24 @@
 </span></code></pre></td></tr></table></div></figure>
 
 
-<p>This checks if we&rsquo;re using Active Record, and if we are, it <code>includes</code> this module into the <code>ActionController::Base</code>, the module which every Active Record model inherits from, thus responding to those method calls.</p>
+<p>This checks if we&rsquo;re using Action Controller, and if we are, it <code>includes</code> this module into the <code>ActionController::Base</code>, the module which the <code>ApplicationController</code> inherits from, which in turn, is the class from which all other controllers inherit.</p>
+
+<p>But to get access to the <code>can</code> and other methods which are defined in <code>CanCan::ControllerAdditions::ClassMethods</code> module, we need this bit of code:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='ruby'><span class='line'><span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">included</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+</span><span class='line'>  <span class="n">base</span><span class="o">.</span><span class="n">extend</span> <span class="no">ClassMethods</span>
+</span><span class='line'>  <span class="n">base</span><span class="o">.</span><span class="n">helper_method</span> <span class="ss">:can?</span><span class="p">,</span> <span class="ss">:cannot?</span><span class="p">,</span> <span class="ss">:current_ability</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>This <code>extends</code> all our application controllers (by way of inheriting from <code>ActionController::Base</code>), and gives them the ability to respond to those method calls.</p>
+
+<p>It also calls the <code>helper_method</code> method passing in the <code>:can?</code>, <code>:cannot?</code>, and <code>:current_ability</code> methods, giving our <strong>views</strong> access to those methods as well.</p>
 
 <p>So that&rsquo;s the short of it. Although the wiki is very helpful, the inline documentation is more verbose, so if you get stuck, that might be a good place to start. Besides, code organization is a skill hard to pickup, and I&rsquo;m sure I&rsquo;ve learned something perusing this codebase, written by a programmer far more skilled than me. And, best of all, Rails is that much less magical. Magic != Fun.</p>
 
